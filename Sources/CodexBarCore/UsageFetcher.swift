@@ -6,16 +6,37 @@ public struct RateWindow: Codable, Equatable, Sendable {
     public let resetsAt: Date?
     /// Optional textual reset description (used by Claude CLI UI scrape).
     public let resetDescription: String?
+    /// Optional percent restored on the next regeneration tick for providers with rolling recovery.
+    public let nextRegenPercent: Double?
 
-    public init(usedPercent: Double, windowMinutes: Int?, resetsAt: Date?, resetDescription: String?) {
+    public init(
+        usedPercent: Double,
+        windowMinutes: Int?,
+        resetsAt: Date?,
+        resetDescription: String?,
+        nextRegenPercent: Double? = nil)
+    {
         self.usedPercent = usedPercent
         self.windowMinutes = windowMinutes
         self.resetsAt = resetsAt
         self.resetDescription = resetDescription
+        self.nextRegenPercent = nextRegenPercent
     }
 
     public var remainingPercent: Double {
         max(0, 100 - self.usedPercent)
+    }
+}
+
+public struct NamedRateWindow: Codable, Equatable, Sendable {
+    public let id: String
+    public let title: String
+    public let window: RateWindow
+
+    public init(id: String, title: String, window: RateWindow) {
+        self.id = id
+        self.title = title
+        self.window = window
     }
 }
 
@@ -51,6 +72,7 @@ public struct UsageSnapshot: Codable, Sendable {
     public let primary: RateWindow?
     public let secondary: RateWindow?
     public let tertiary: RateWindow?
+    public let extraRateWindows: [NamedRateWindow]?
     public let providerCost: ProviderCostSnapshot?
     public let zaiUsage: ZaiUsageSnapshot?
     public let minimaxUsage: MiniMaxUsageSnapshot?
@@ -63,6 +85,7 @@ public struct UsageSnapshot: Codable, Sendable {
         case primary
         case secondary
         case tertiary
+        case extraRateWindows
         case providerCost
         case openRouterUsage
         case updatedAt
@@ -76,6 +99,7 @@ public struct UsageSnapshot: Codable, Sendable {
         primary: RateWindow?,
         secondary: RateWindow?,
         tertiary: RateWindow? = nil,
+        extraRateWindows: [NamedRateWindow]? = nil,
         providerCost: ProviderCostSnapshot? = nil,
         zaiUsage: ZaiUsageSnapshot? = nil,
         minimaxUsage: MiniMaxUsageSnapshot? = nil,
@@ -87,6 +111,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.primary = primary
         self.secondary = secondary
         self.tertiary = tertiary
+        self.extraRateWindows = extraRateWindows
         self.providerCost = providerCost
         self.zaiUsage = zaiUsage
         self.minimaxUsage = minimaxUsage
@@ -101,6 +126,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.primary = try container.decodeIfPresent(RateWindow.self, forKey: .primary)
         self.secondary = try container.decodeIfPresent(RateWindow.self, forKey: .secondary)
         self.tertiary = try container.decodeIfPresent(RateWindow.self, forKey: .tertiary)
+        self.extraRateWindows = try container.decodeIfPresent([NamedRateWindow].self, forKey: .extraRateWindows)
         self.providerCost = try container.decodeIfPresent(ProviderCostSnapshot.self, forKey: .providerCost)
         self.zaiUsage = nil // Not persisted, fetched fresh each time
         self.minimaxUsage = nil // Not persisted, fetched fresh each time
@@ -131,6 +157,7 @@ public struct UsageSnapshot: Codable, Sendable {
         try container.encode(self.primary, forKey: .primary)
         try container.encode(self.secondary, forKey: .secondary)
         try container.encode(self.tertiary, forKey: .tertiary)
+        try container.encodeIfPresent(self.extraRateWindows, forKey: .extraRateWindows)
         try container.encodeIfPresent(self.providerCost, forKey: .providerCost)
         try container.encodeIfPresent(self.openRouterUsage, forKey: .openRouterUsage)
         try container.encode(self.updatedAt, forKey: .updatedAt)
@@ -215,6 +242,7 @@ public struct UsageSnapshot: Codable, Sendable {
             primary: self.primary,
             secondary: self.secondary,
             tertiary: self.tertiary,
+            extraRateWindows: self.extraRateWindows,
             providerCost: self.providerCost,
             zaiUsage: self.zaiUsage,
             minimaxUsage: self.minimaxUsage,
